@@ -1,0 +1,16 @@
+C:\Users\Pate\Documents\Visual Studio 2008\Projects\ISBNdbSearch\ISBNdbSearch\obj\Debug\ResolveAssemblyReference.cache
+C:\Users\Pate\Documents\Visual Studio 2008\Projects\ISBNdbSearch\ISBNdbSearch\obj\Debug\ISBNdbSearch.MainForm.resources
+C:\Users\Pate\Documents\Visual Studio 2008\Projects\ISBNdbSearch\ISBNdbSearch\obj\Debug\ISBNdbSearch.Properties.Resources.resources
+C:\Users\Pate\Documents\Visual Studio 2008\Projects\ISBNdbSearch\ISBNdbSearch\obj\Debug\ISBNdbSearch.csproj.GenerateResource.Cache
+C:\Users\Pate\Documents\Visual Studio 2008\Projects\ISBNdbSearch\ISBNdbSearch\bin\Debug\ISBNdbSearch.exe
+C:\Users\Pate\Documents\Visual Studio 2008\Projects\ISBNdbSearch\ISBNdbSearch\bin\Debug\ISBNdbSearch.pdb
+C:\Users\Pate\Documents\Visual Studio 2008\Projects\ISBNdbSearch\ISBNdbSearch\obj\Debug\ISBNdbSearch.exe
+C:\Users\Pate\Documents\Visual Studio 2008\Projects\ISBNdbSearch\ISBNdbSearch\obj\Debug\ISBNdbSearch.pdb
+D:\Documents\C# Bot\ISBNdb Search\C#\ISBNdbSearch\obj\Debug\ISBNdbSearch.exe
+D:\Documents\C# Bot\ISBNdb Search\C#\ISBNdbSearch\obj\Debug\ISBNdbSearch.pdb
+D:\Documents\C# Bot\ISBNdb Search\C#\ISBNdbSearch\bin\Debug\ISBNdbSearch.exe
+D:\Documents\C# Bot\ISBNdb Search\C#\ISBNdbSearch\bin\Debug\ISBNdbSearch.pdb
+D:\Documents\C# Bot\ISBNdb Search\C#\ISBNdbSearch\obj\Debug\ISBNdbSearch.csprojResolveAssemblyReference.cache
+D:\Documents\C# Bot\ISBNdb Search\C#\ISBNdbSearch\obj\Debug\ISBNdbSearch.MainForm.resources
+D:\Documents\C# Bot\ISBNdb Search\C#\ISBNdbSearch\obj\Debug\ISBNdbSearch.Properties.Resources.resources
+D:\Documents\C# Bot\ISBNdb Search\C#\ISBNdbSearch\obj\Debug\ISBNdbSearch.csproj.GenerateResource.Cache

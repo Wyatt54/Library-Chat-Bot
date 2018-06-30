@@ -1,0 +1,31 @@
+{
+    "name": "Theodore",
+    "description": "",
+    "secretKey": "",
+    "services": [
+        {
+            "appId": "",
+            "id": "61d77c50-6b5e-11e8-850e-876c9cbf3538",
+            "type": "endpoint",
+            "appPassword": "",
+            "endpoint": "http://localhost:3984/",
+            "name": "http://localhost:3984/"
+        },
+        {
+            "appId": "",
+            "id": "6821f080-6b5f-11e8-82d6-cd7ccf472b67",
+            "type": "endpoint",
+            "appPassword": "",
+            "endpoint": "http://localhost:3984/api/messages",
+            "name": "Theodore"
+        },
+        {
+            "appId": "",
+            "id": "40f827d0-742f-11e8-aef8-0fee90601b0f",
+            "type": "endpoint",
+            "appPassword": "",
+            "endpoint": "http://localhost:3979/",
+            "name": "RichCardsBot"
+        }
+    ]
+}
