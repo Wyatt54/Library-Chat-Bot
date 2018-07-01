@@ -11,306 +11,293 @@ using System.IO;
 using System.Net;
 using System.Drawing;
 using System.Globalization;
+using System.Collections.Specialized;
+using System.Xml;
+using HtmlAgilityPack;
+using System.Windows;
 using Newtonsoft.Json;
+
+
+
 
 namespace Microsoft.Bot
 {
     [Serializable]
     public class BookDialog : IDialog<object>
     {
-        public Image UrlImage;
-
-        public async Task StartAsync(IDialogContext context)
+        public async Task StartAsync(IDialogContext Context)
         {
-            context.Wait(MessageReceivedAsync);
+            Context.Wait(MessageReceivedAsync);
         }
-        public async Task MessageReceivedAsync(IDialogContext context, IAwaitable<IMessageActivity> argument)
+        public async Task MessageReceivedAsync(IDialogContext Context, IAwaitable<IMessageActivity> Argument)
         {
             // This task handles all of the message returning.  Can be considered the master function for the bot.
-
-            var message = await argument;
-            LUISRequest request = new LUISRequest();
+            var message = await Argument;
+            
+            // Post the welcome message when somebody new joins the conversation
             if (message.Type == ActivityTypes.ConversationUpdate)
             {
-                IConversationUpdateActivity iConversationUpdated = message as IConversationUpdateActivity;
-                if (iConversationUpdated != null)
-                {
-                    ConnectorClient connector = new ConnectorClient(new System.Uri(message.ServiceUrl));
-
-                    foreach (var member in iConversationUpdated.MembersAdded ?? System.Array.Empty<ChannelAccount>())
-                    {
-                        // This means the bot is being added.
-                        if (member.Id == iConversationUpdated.Recipient.Id)
-                        {
-                            // Tell users what the bot does.
-                            var Hero = new HeroCard
-                            {
-                                Title = "Library Chat Bot",
-                                Subtitle = "",
-                                Text = "Hello! I am a bot designed to give you information on authors and books.  Wyatt Fraley made me.  Ask me anything you like!"
-                            };
-                            await PostCard(context, Hero);
-                        }
-
-                    }
-
-                }
+                await PostWelcomeMessage(Context, message);
             }
             else if (message.Type == ActivityTypes.Message)
             {
                 // Here we have LUIS interpret the query
-                await request.MakeRequest(message.Text.ToString());
+                LUISRequest Request = new LUISRequest();
+                await Request.MakeRequest(message.Text.ToString());
 
                 // Now we parse the data to figure out what to search for.
-                DataParser LUISData = new DataParser(request.LUISResult);
+                DataParser LUISData = new DataParser(Request.LUISResult);
                 LUISData.LUISParse();
 
                 // Check to see if LUIS understood the query
-                var response = string.Empty;
                 if (LUISData.LUISParsed.entities.Count == 0)
                 {
-                    response = "I'm sorry, I don't understand your message.";
-                    await context.PostAsync(response);
+                    string response = "I'm sorry, I don't understand your message.";
+                    await Context.PostAsync(response);
                 }
                 else
                 {
                     // It is time to search the ISBN database for the information.
-                    SearchISBNdB search = new SearchISBNdB();
-                    String accessKey = "";
-                    String results = search.GetJSONData(accessKey, LUISData.LUISParsed.topScoringIntent.intent, LUISData.LUISParsed.entities);
+                    SearchISBNdB Search = new SearchISBNdB();
+                    String Results = Search.GetJSONData(LUISData.LUISParsed.topScoringIntent.intent, LUISData.LUISParsed.entities);
 
                     // Now parse it to make it readable.
-                    DataParser data = new DataParser(results);
-                    data.DBParse(LUISData.LUISParsed.topScoringIntent.intent);
+                    DataParser ISBNData = new DataParser(Results);
+                    ISBNData.DBParse(LUISData.LUISParsed.topScoringIntent.intent);
 
 
                     // All that is left is to format a response message.
-                    TextInfo info = new CultureInfo("en-US", false).TextInfo;
-                    if (LUISData.LUISParsed.topScoringIntent.intent == "SearchByAuthorForBooks")
+                    // Check the intent and post the appropriate card.
+                    TextInfo Info = new CultureInfo("en-US", false).TextInfo;
+                    if (LUISData.LUISParsed.topScoringIntent.intent == LUISConstants.SearchByAuthorForBooks)
                     {
-                        // Grab the Author name.
-                        string author = string.Empty;
-                        foreach (Entity entity in LUISData.LUISParsed.entities)
-                        {
-                            if (entity.type == "Author")
-                            {
-                                author = entity.entity;
-                                break;
-                            }
-                        }
-                        author = info.ToTitleCase(author);
-                        string CardTitle = "Books by " + author;
-
-                        // Grab all the titles the author has written
-                        List<CardAction> CardActions = new List<CardAction>();
-                        List<string> BookCheck = new List<string>();
-                        if (data.AuthorsReturned[0].books.Count > 0)
-                        {
-                            foreach (Book book in data.AuthorsReturned[0].books)
-                            {
-                                string title = book.title_long;
-                                title = title.Replace('_', ' ');
-                                title = title.Replace('-', ' ');
-
-
-                                title = info.ToTitleCase(title);
-
-                                // Check to make sure its not a repeat.
-                                if (!BookCheck.Contains(title))
-                                {
-                                    // Add the book title to a list.
-                                    BookCheck.Add(title);
-
-                                    // Now lets make a card action.
-                                    if (book.image != null)
-                                    {
-                                        var Action = new CardAction(ActionTypes.ImBack, title, book.image, "details of " + title, null, null);
-                                        CardActions.Add(Action);
-                                    }
-                                }
-                            }
-
-                            // Now that we have the list of books by the author, lets make the response card.
-                            var Hero = new HeroCard
-                            {
-                                Title = CardTitle,
-                                Subtitle = "",
-                                Text = "Click on a button for more information.",
-                                Images = null,
-                                Buttons = CardActions
-                            };
-
-                            // Now we post the card.
-                            await PostCard(context, Hero);
-                        }
-                        else
-                        {
-                            response = "Sorry that author does not exist in my database.";
-                            await context.PostAsync(response);
-                        }
-                        
+                        await PostAuthorCard(Context, LUISData.LUISParsed.entities, ISBNData, Info);
                     }
-                    else if (LUISData.LUISParsed.topScoringIntent.intent == "SearchByBookForAuthor")
+                    else if (LUISData.LUISParsed.topScoringIntent.intent == LUISConstants.SearchByBookForAuthor)
                     {
-                        // First get the book name.
-                        string book = string.Empty;
-                        foreach (Entity entity in LUISData.LUISParsed.entities)
-                        {
-                            if (entity.type == "Book")
-                            {
-                                book = entity.entity;
-                                break;
-                            }
-                        }
-                        book = info.ToTitleCase(book);
-
-                        string BookTitle = null;
-                        string BookAuthor = null;
-                        string BookImage = null;
-                        // Now look through the returned books for the searched book.
-                        if (data.BooksReturned != null)
-                        {
-                            foreach (var BookReturned in data.BooksReturned.books)
-                            {
-                                // Must make the cases identical to ensure accurate comparison
-                                if (info.ToTitleCase(BookReturned.title_long).Contains(book))
-                                {
-                                    // Here we found the book, so lets grab the necessary info.
-                                    BookTitle = BookReturned.title_long;
-                                    BookAuthor = BookReturned.authors[0];
-                                    BookImage = BookReturned.image;
-
-                                    break;
-                                }
-                            }
-
-                            // Make sure we found the book
-                            if (BookTitle != null)
-                            {
-                                HeroCard Hero = null;
-                                // Here we make a Hero Card if an image exists for us to use.
-                                if (BookImage != null)
-                                {
-                                    // Now that we have the info, lets make a card to post.
-                                    Hero = new HeroCard
-                                    {
-                                        Title = BookTitle,
-                                        Subtitle = "Written by " + BookAuthor,
-                                        Text = "",
-                                        Images = new List<CardImage> { new CardImage(BookImage) },
-                                        Buttons = new List<CardAction> { new CardAction(ActionTypes.ImBack, "Book details.", null, "Details on " + BookTitle, null, null), new CardAction(ActionTypes.ImBack, "More books by this author.", null, "Books by " + BookAuthor, null, null)}
-                                    };
-                                }
-                                else
-                                {
-                                    // Make the card without the image
-                                    Hero = new HeroCard
-                                    {
-                                        Title = BookTitle,
-                                        Subtitle = "Written by " + BookAuthor,
-                                        Text = "",
-                                        Images = null,
-                                        Buttons = null
-                                    };
-                                }
-
-                                // Now we post the card.
-                                await PostCard(context, Hero);
-                            }
-                            else
-                            {
-                                response = "Sorry I could not find that book in my database.";
-                                await context.PostAsync(response);
-                            }                            
-                        }
-                        else
-                        {
-                            response = "Sorry that book does not exist in my database.";
-                            await context.PostAsync(response);
-                        }
+                        await PostBookCard(Context, LUISData.LUISParsed.entities, ISBNData, Info);
                     }
-                    else if (LUISData.LUISParsed.topScoringIntent.intent == "SearchByBookForSynopsis")
+                    else if (LUISData.LUISParsed.topScoringIntent.intent == LUISConstants.SearchByBookForSynopsis)
                     {
-                        // First get the book name.
-                        string BookSearch = string.Empty;
-                        foreach (Entity entity in LUISData.LUISParsed.entities)
+                        await PostSynopsisCard(Context, LUISData.LUISParsed.entities, ISBNData, Info);
+                    }
+                }
+            }
+            Context.Wait(MessageReceivedAsync);
+        }
+        public async Task PostWelcomeMessage(IDialogContext Context, IMessageActivity Message)
+        {
+            IConversationUpdateActivity iConversationUpdated = Message as IConversationUpdateActivity;
+            if (iConversationUpdated != null)
+            {
+                ConnectorClient connector = new ConnectorClient(new System.Uri(Message.ServiceUrl));
+
+                foreach (var member in iConversationUpdated.MembersAdded ?? System.Array.Empty<ChannelAccount>())
+                {
+                    // This means the bot is being added.
+                    if (member.Id == iConversationUpdated.Recipient.Id)
+                    {
+                        // Tell users what the bot does.
+                        var Hero = new HeroCard
                         {
-                            if (entity.type == "Book")
-                            {
-                                BookSearch = info.ToTitleCase(entity.entity);
-                                break;
-                            }
-                        }
-                        // Search for the book in the Author data.
-                        string BookName = string.Empty;
-                        response = "Sorry, my database does not have that book.";
-                        if (data.BooksReturned != null)
+                            Title = "Library Chat Bot",
+                            Subtitle = "",
+                            Text = "Hello! I am a bot designed to give you information on authors and books.  Wyatt Fraley made me.  Ask me anything you like!"
+                        };
+                        await PostCard(Context, Hero);
+                    }
+                }
+            }
+        }
+        public async Task PostAuthorCard(IDialogContext Context, List<Entity> Entities, DataParser ISBNData, TextInfo Info)
+        {
+            // Grab the Author name.
+            string author = string.Empty;
+            foreach (Entity entity in Entities)
+            {
+                if (entity.type == LUISConstants.Author)
+                {
+                    author = entity.entity;
+                    break;
+                }
+            }
+            author = Info.ToTitleCase(author);
+            string CardTitle = "Books by " + author;
+
+            // Grab all the titles the author has written
+            List<CardAction> CardActions = new List<CardAction>();
+            List<string> BookCheck = new List<string>();
+            if (ISBNData.AuthorsReturned[0].books.Count > 0)
+            {
+                foreach (Book book in ISBNData.AuthorsReturned[0].books)
+                {
+                    string title = book.title_long;
+                    title = title.Replace('_', ' ');
+                    title = title.Replace('-', ' ');
+
+
+                    title = Info.ToTitleCase(title);
+
+                    // Check to make sure its not a repeat.
+                    if (!BookCheck.Contains(title))
+                    {
+                        // Add the book title to a list.
+                        BookCheck.Add(title);
+
+                        // Now lets make a card action.
+                        if (book.image != null)
                         {
-                            foreach (var book in data.BooksReturned.books)
-                            {
-                                BookName = book.title_long;
-                                BookName = BookName.Replace('_', ' ');
-                                BookName = BookName.Replace('-', ' ');
-                                BookName = info.ToTitleCase(BookName);
-
-                                // Try to get the synopsis, but it isn't always available.
-                                // Otherwise grab the overview.
-                                if (BookName.Contains(BookSearch))
-                                {
-                                    string PlotText = string.Empty;
-                                    if (book.synopsys != null)
-                                    {
-                                        PlotText = data.StripXML(book.synopsys);
-                                    }
-                                    else if (book.overview != null)
-                                    {
-                                        PlotText = data.StripXML(book.overview);
-                                    }
-                                    else
-                                    {
-                                        response = "Sorry the database does not have info for that book.";
-                                        await context.PostAsync(response);
-                                        break;
-                                    }
-
-                                    // Now lets make a card to return the info.
-                                    if (book.image != null)
-                                    {
-                                        var Hero = new HeroCard
-                                        {
-                                            Title = BookName,
-                                            Subtitle = "",
-                                            Images = new List<CardImage> { new CardImage(book.image) },
-                                            Text = PlotText
-                                        };
-
-                                        // Post the card.
-                                        await PostCard(context, Hero);
-                                    }
-                                    else
-                                    {
-                                        // If we don't have an image to use, just post the text.
-                                        // Seems like the majority of books have images.
-                                        await context.PostAsync(PlotText);
-                                    }
-                                    break;
-                                }
-                            }
+                            var Action = new CardAction(ActionTypes.ImBack, title, book.image, "details of " + title, null, null);
+                            CardActions.Add(Action);
                         }
                     }
                 }
-                
+
+                // Now that we have the list of books by the author, lets make the response card.
+                var Hero = new HeroCard
+                {
+                    Title = CardTitle,
+                    Subtitle = "",
+                    Text = "Click on a button for more information.",
+                    Images = null,
+                    Buttons = CardActions
+                };
+
+                // Now we post the card.
+                await PostCard(Context, Hero);
             }
-            context.Wait(MessageReceivedAsync);
+            else
+            {
+                string response = "Sorry that author does not exist in my database.";
+                await Context.PostAsync(response);
+            }
         }
-        public async Task PostCard(IDialogContext context, HeroCard Hero)
+        public async Task PostBookCard(IDialogContext Context, List<Entity> Entities, DataParser ISBNData, TextInfo Info)
+        {
+            // First get the book name.
+            string BookName = string.Empty;
+            foreach (Entity entity in Entities)
+            {
+                if (entity.type == LUISConstants.Book)
+                {
+                    BookName = entity.entity;
+                    break;
+                }
+            }
+            BookName = Info.ToTitleCase(BookName);
+
+            // Now look through the returned books for the searched book.
+            if (ISBNData.BooksReturned != null)
+            {
+                Book FoundBook = new Book();
+                foreach (var BookReturned in ISBNData.BooksReturned.books)
+                {
+                    // Must make the cases identical to ensure accurate comparison
+                    if (Info.ToTitleCase(BookReturned.title_long).Contains(BookName))
+                    {
+                        // Here we found the book, so lets grab the necessary info.
+                        FoundBook = BookReturned;
+                        break;
+                    }
+                }
+
+                // Make sure we found the book
+                if (FoundBook.title_long != null)
+                {
+                    // Now that we have the info, lets make a card to post.
+                    var Hero = new HeroCard
+                    {
+                        Title = FoundBook.title_long,
+                        Subtitle = "Written by " + FoundBook.authors[0],
+                        Text = "",
+                        Images = new List<CardImage> { new CardImage(FoundBook.image) },
+                        Buttons = new List<CardAction> {
+                                        new CardAction(ActionTypes.ImBack, "Book details.", null, "Details of " + FoundBook.title_long, null, null),
+                                        new CardAction(ActionTypes.ImBack, "More books by this author.", null, "Books by " + FoundBook.authors[0], null, null)
+                            }
+                    };
+                    // Now we post the card.
+                    await PostCard(Context, Hero);
+                }
+                else
+                {
+                    string Response = "Sorry I could not find that book in my database.";
+                    await Context.PostAsync(Response);
+                }
+            }
+            else
+            {
+                string Response = "Sorry that book does not exist in my database.";
+                await Context.PostAsync(Response);
+            }
+        }
+        public async Task PostSynopsisCard(IDialogContext Context, List<Entity> Entities, DataParser ISBNData, TextInfo Info)
+        {
+            // First get the book name.
+            string BookSearch = string.Empty;
+            foreach (Entity entity in Entities)
+            {
+                if (entity.type == LUISConstants.Book)
+                {
+                    BookSearch = Info.ToTitleCase(entity.entity);
+                    break;
+                }
+            }
+            // Search for the book in the Author data.
+            string BookName = string.Empty;
+            if (ISBNData.BooksReturned != null)
+            {
+                foreach (var book in ISBNData.BooksReturned.books)
+                {
+                    // All books returned from ISBN have '_' or '-' in place of spaces, so must replace those first.
+                    BookName = book.title_long;
+                    BookName = BookName.Replace('_', ' ');
+                    BookName = BookName.Replace('-', ' ');
+                    BookName = Info.ToTitleCase(BookName);
+
+                    // Try to get the synopsis, but it isn't always available.
+                    // Otherwise grab the overview.
+                    if (BookName.Contains(BookSearch))
+                    {
+                        string PlotText = string.Empty;
+                        if (book.synopsys != null)
+                        {
+                            PlotText = ISBNData.StripXML(book.synopsys);
+                        }
+                        else if (book.overview != null)
+                        {
+                            PlotText = ISBNData.StripXML(book.overview);
+                        }
+                        else
+                        {
+                            string response = "Sorry the database does not have info for that book.";
+                            await Context.PostAsync(response);
+                            break;
+                        }
+
+                        // Now lets make a card to return the info.
+                        var Hero = new HeroCard
+                        {
+                            Title = BookName,
+                            Images = new List<CardImage> { new CardImage(book.image) },
+                            Text = PlotText
+                        };
+
+                        // Post the card.
+                        await PostCard(Context, Hero);
+                        break;
+                    }
+                }
+            }
+        }
+        public async Task PostCard(IDialogContext Context, HeroCard Hero)
         {
             // Posts hero cards.
-            var CardMessage = context.MakeMessage();
+            var CardMessage = Context.MakeMessage();
             var attatchment = Hero.ToAttachment();
             CardMessage.Attachments.Add(attatchment);
 
-            await context.PostAsync(CardMessage);
+            await Context.PostAsync(CardMessage);
         }
     }
     public class DataParser
@@ -335,17 +322,17 @@ namespace Microsoft.Bot
         {
             // Simple parser which deserializes strings into classes based on  the intent of the query.
 
-            if (Intent == "SearchByAuthorForBooks")
+            if (Intent == LUISConstants.SearchByAuthorForBooks)
             {
                 // Deserialize the string into Book and Author objects.
                 try
                 {
-                    Author deserialized = new JavaScriptSerializer().Deserialize<Author>(@ToParse);
-                    AuthorsReturned.Add(deserialized);
+                    Author Deserialized = new JavaScriptSerializer().Deserialize<Author>(@ToParse);
+                    AuthorsReturned.Add(Deserialized);
                 }
                 catch (Exception e) { string exception = e.Message; }
             }
-            else if (Intent == "SearchByBookForAuthor" || Intent == "SearchByBookForSynopsis")
+            else if (Intent == LUISConstants.SearchByBookForAuthor || Intent == LUISConstants.SearchByBookForSynopsis)
             {
                 // Deserialize the string into a list of books.
                 try
@@ -355,9 +342,6 @@ namespace Microsoft.Bot
                 }
                 catch (Exception e) { string exception = e.Message; }
             }
-            
-            
-            ToParse = string.Empty;
         }
         public void LUISParse()
         {
@@ -372,65 +356,58 @@ namespace Microsoft.Bot
         {
             // Strips the xml tag information to make the return message easy to read
             // Only used on book sysnopsis and overviews.
-            while (InpString.Contains("<"))
-            {
-                int first = InpString.IndexOf('<');
-                int second = InpString.IndexOf('>');
+            HtmlDocument Plot = new HtmlDocument();
+            Plot.LoadHtml(InpString);
+            
 
-                InpString = InpString.Remove(first, second - first + 1);
-            }
-            return InpString;
+            return Plot.DocumentNode.InnerText;
         }
     }
     public class LUISRequest
     {
         public string LUISResult;
+        public HttpClient Client;
+        public NameValueCollection QueryString;
+
+
         public LUISRequest()
         {
             LUISResult = string.Empty;
+            Client = new HttpClient();
+            Client.DefaultRequestHeaders.Add("Ocp-Apim-Subscription-Key", Keys.LUISSubscriptionKey);
+
+            QueryString = HttpUtility.ParseQueryString(string.Empty);
+            QueryString["timezoneOffset"] = "0";
+            QueryString["verbose"] = "false";
+            QueryString["spellCheck"] = "false";
+            QueryString["staging"] = "false";
         }
         public async Task MakeRequest(String query)
         {
-            var client = new HttpClient();
-            var queryString = HttpUtility.ParseQueryString(string.Empty);
-
-            // app ID for the book recommender
-            var luisAppId = "";
-            var subscriptionKey = "";
-
-            // The request header contains your subscription key
-            client.DefaultRequestHeaders.Add("Ocp-Apim-Subscription-Key", subscriptionKey);
-
-            // The "q" parameter contains the utterance to send to LUIS
-            queryString["q"] = query;
-
-            // These optional request parameters are set to their default values
-            queryString["timezoneOffset"] = "0";
-            queryString["verbose"] = "false";
-            queryString["spellCheck"] = "false";
-            queryString["staging"] = "false";
-
-            var uri = "https://westus.api.cognitive.microsoft.com/luis/v2.0/apps/" + luisAppId + "?" + queryString;
-            var response = await client.GetAsync(uri);
+            // Add the query
+            QueryString["q"] = query;
+            
+            var uri = "https://westus.api.cognitive.microsoft.com/luis/v2.0/apps/" + Keys.LUISAppID + "?" + QueryString;
+            var response = await Client.GetAsync(uri);
             var strResponseContent = await response.Content.ReadAsStringAsync();
             LUISResult = strResponseContent.ToString();
         }
     }
     public class SearchISBNdB
     {
-        public String GetJSONData(String AccessKey, String Intent, List<Entity> Entities)
+        public String GetJSONData(String Intent, List<Entity> Entities)
         {
             String results = null;
             try
             {
                 // To determine what kind of search we need to do, look at the Intent
                 String ISBNUriStr = "https://api.isbndb.com/";
-                if (Intent == "SearchByAuthorForBooks")
+                if (Intent == LUISConstants.SearchByAuthorForBooks)
                 {
                     ISBNUriStr += "author/";
                     foreach (var entity in Entities)
                     {
-                        if (entity.type == "Author")
+                        if (entity.type == LUISConstants.Author)
                         {
                             TextInfo info = new CultureInfo("en-US", false).TextInfo;
                             ISBNUriStr += info.ToTitleCase(entity.entity);
@@ -438,12 +415,12 @@ namespace Microsoft.Bot
                         }
                     }
                 }
-                else if (Intent == "SearchByBookForAuthor" || Intent == "SearchByBookForSynopsis")
+                else if (Intent == LUISConstants.SearchByBookForAuthor || Intent == LUISConstants.SearchByBookForSynopsis)
                 {
                     ISBNUriStr += "books/";
                     foreach (var entity in Entities)
                     {
-                        if (entity.type == "Book")
+                        if (entity.type == LUISConstants.Book)
                         {
                             TextInfo info = new CultureInfo("en-US", false).TextInfo;
                             ISBNUriStr += info.ToTitleCase(entity.entity);
@@ -460,7 +437,7 @@ namespace Microsoft.Bot
                 WebRequest http = WebRequest.Create(uri);
                 http.Method = "GET";
                 http.ContentType = "application/json";
-                http.Headers["X-API-KEY"] = AccessKey;
+                http.Headers["X-API-KEY"] = Keys.ISBNdBAccessKey;
                 WebResponse response = http.GetResponse();
                 Stream stream = response.GetResponseStream();
 
@@ -472,7 +449,7 @@ namespace Microsoft.Bot
                 // there must be another database search.
                 // This seems to be an issue with the database itself, and the way it chooses to return data.
 
-                if (Intent == "SearchByBookForSynopsis")
+                if (Intent == LUISConstants.SearchByBookForSynopsis)
                 {
                     ISBNUriStr = "https://api.isbndb.com/author/";
                     // Grab the author of the book.
@@ -496,7 +473,7 @@ namespace Microsoft.Bot
                     http = WebRequest.Create(uri);
                     http.Method = "GET";
                     http.ContentType = "application/json";
-                    http.Headers["X-API-KEY"] = AccessKey;
+                    http.Headers["X-API-KEY"] = Keys.ISBNdBAccessKey;
                     response = http.GetResponse();
                     stream = response.GetResponseStream();
 
@@ -511,21 +488,4 @@ namespace Microsoft.Bot
             catch (Exception e) { string exception = e.Message; return exception; }
         }
     }
-    public class CardMaker
-    {
-        private static Attachment GetHeroCard()
-        {
-            var heroCard = new HeroCard
-            {
-                Title = "BotFramework Hero Card",
-                Subtitle = "Your bots — wherever your users are talking",
-                Text = "Build and connect intelligent bots to interact with your users naturally wherever they are, from text/sms to Skype, Slack, Office 365 mail and other popular services.",
-                Images = new List<CardImage> { new CardImage("https://sec.ch9.ms/ch9/7ff5/e07cfef0-aa3b-40bb-9baa-7c9ef8ff7ff5/buildreactionbotframework_960.jpg") },
-                Buttons = new List<CardAction> { new CardAction(ActionTypes.OpenUrl, "Get Started", value: "https://docs.microsoft.com/bot-framework") }
-            };
-
-            return heroCard.ToAttachment();
-        }
-    }
-
 }
