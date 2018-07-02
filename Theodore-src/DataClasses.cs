@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Web;
 
@@ -31,6 +32,13 @@ namespace Microsoft.Bot
         public List<string> authors { get; set; }
         public List<string> subjects { get; set; }
         public List<string> reviews { get; set; }
+        public string CleanTitle(TextInfo Info)
+        {
+            title_long = title_long.Replace('_', ' ');
+            title_long = title_long.Replace('-', ' ');
+            title_long = Info.ToTitleCase(title_long);
+            return title_long;
+        }
     }
     public class Author
     {
