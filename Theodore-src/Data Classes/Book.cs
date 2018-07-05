@@ -6,11 +6,6 @@ using System.Web;
 
 namespace Microsoft.Bot
 {
-    public class BookData
-    {
-        public string total { get; set; }
-        public List<Book> books { get; set; }
-    }
     public class Book
     {
         public string title { get; set; }
@@ -40,28 +35,5 @@ namespace Microsoft.Bot
             return title_long;
         }
     }
-    public class Author
-    {
-        public string name { get; set; }
-        public List<Book> books { get; set; }
-    }
-    public class LUISData
-    {
-        public string query { get; set; }
-        public TopScoringIntent topScoringIntent { get; set; }
-        public List<Entity> entities { get; set; }
-    }
-    public class TopScoringIntent
-    {
-        public string intent { get; set; }
-        public float score { get; set; }
-    }
-    public class Entity
-    {
-        public string entity { get; set; }
-        public string type { get; set; }
-        public int startIndex { get; set; }
-        public int endIndex { get; set; }
-        public float score { get; set; }
-    }
+
 }

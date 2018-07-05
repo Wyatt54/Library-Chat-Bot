@@ -176,12 +176,20 @@
     <Content Include="Web.config" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="APICommunication\DataParser.cs" />
+    <Compile Include="APICommunication\LUISRequest.cs" />
+    <Compile Include="APICommunication\SearchISBNdB.cs" />
     <Compile Include="App_Start\WebApiConfig.cs" />
-    <Compile Include="Constants.cs" />
     <Compile Include="Controllers\MessagesController.cs" />
+    <Compile Include="Data Classes\Author.cs" />
+    <Compile Include="Data Classes\Book.cs" />
+    <Compile Include="Data Classes\BookData.cs" />
+    <Compile Include="Data Classes\Entity.cs" />
+    <Compile Include="Data Classes\Keys.cs" />
+    <Compile Include="Data Classes\LuisConstants.cs" />
+    <Compile Include="Data Classes\LUISData.cs" />
+    <Compile Include="Data Classes\TopScoringIntent.cs" />
     <Compile Include="Dialogs\BookSearcher.cs" />
-    <Compile Include="DataClasses.cs" />
-    <Compile Include="Dialogs\EchoDialog.cs" />
     <Compile Include="Global.asax.cs">
       <DependentUpon>Global.asax</DependentUpon>
     </Compile>
